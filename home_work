@@ -1,0 +1,62 @@
+import redis
+import socket
+from datetime import timedelta
+
+domains_dict = redis.Redis()
+
+def _get_whois(dname: str) -> str:
+    response = bytes()
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.settimeout(3)
+        sock.connect(("whois.tcinet.ru", 43))
+        sock.send(f"{dname}\r\n".encode())
+        while True:
+            try:
+                data = sock.recv(4096)
+            except socket.timeout:
+                raise Exception
+
+            if data:
+                response += data
+            else:
+                break
+
+    return response.decode("utf-8", "replace")
+
+def get_status(dname):
+    whois_dname = _get_whois(dname)
+    if "created:" in whois_dname:
+        return "True"
+    else:
+        return "False"
+
+def check_domain(dname):
+    domain_status = domains_dict.get(dname)
+    if domain_status == None:
+        domain_status = get_status(dname)
+        domains_dict.setex(dname, timedelta(minutes=1), value = domain_status)
+        return domain_status
+    else:
+        return domain_status.decode("utf-8", "replace")
+
+def check_domains(dnames):
+    dnames_status = {}
+    for dname in dnames:
+        domain_status = domains_dict.get(dname)
+        if domain_status == None:
+            domain_status = get_status(dname)
+            domains_dict.setex(dname, timedelta(minutes=1), value = domain_status)
+            dnames_status[dname] = domain_status
+        else:
+            dnames_status[dname] = domain_status.decode("utf-8", "replace")
+    return dnames_status
+
+dnames = (input("Введите имя домена или список доменов через пробел: ").split())
+if len(dnames) == 1:
+    dname = dnames[0]
+    print(check_domain(dname))
+    print(domains_dict.ttl(dname))
+elif len(dnames) >= 1 :
+    print(check_domains(dnames))
+else:
+    print("Домены не найдены")
