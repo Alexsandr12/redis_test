@@ -1,0 +1,4 @@
+TIMEOUT = 3
+PORT = 43
+WHOIS_SERVER = "whois.tcinet.ru"
+EXPIRED_RECORD = 60
